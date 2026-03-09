@@ -154,7 +154,7 @@ fn Fmt::impl_(fmt : Self, toplevel : @syntax.Impl) -> Doc {
       vis~,
       attrs~,
       doc~,
-      loc~
+      ..
     ) => {
       let doc = fmt.docstring(doc, is_toplevel=true)
       let attrs = fmt.attributes(attrs)
@@ -190,7 +190,7 @@ fn Fmt::impl_(fmt : Self, toplevel : @syntax.Impl) -> Doc {
           space + fmt.expr_block(expr, local_types~, force_newline=true)
         DeclStubs(stubs) => {
           let stubs = match stubs {
-            Import(module_name~, func_name~) => {
+            Import(module_name~, func_name~, ..) => {
               let module_name = double_quoted(text(module_name))
               let func_name = double_quoted(text(func_name))
               space + module_name + space + func_name
@@ -220,7 +220,7 @@ fn Fmt::impl_(fmt : Self, toplevel : @syntax.Impl) -> Doc {
       result +
       body
     }
-    TopTrait({ name, supers, methods, vis, attrs, doc, loc: _ }) => {
+    TopTrait({ name, supers, methods, vis, attrs, doc, .. }) => {
       let doc = fmt.docstring(doc, is_toplevel=true)
       let attrs = fmt.attributes(attrs)
       let vis = fmt.visibility(vis)
@@ -249,7 +249,7 @@ fn Fmt::impl_(fmt : Self, toplevel : @syntax.Impl) -> Doc {
         )
       doc + attrs + vis + trait_ + name + supers + methods
     }
-    TopLetDef(binder~, ty~, expr~, vis~, is_constant~, attrs~, doc~, loc=_) => {
+    TopLetDef(binder~, ty~, expr~, vis~, is_constant~, attrs~, doc~, ..) => {
       let doc = fmt.docstring(doc, is_toplevel=true)
       let attrs = fmt.attributes(attrs)
       let vis = fmt.visibility(vis)
@@ -277,13 +277,13 @@ fn Fmt::impl_(fmt : Self, toplevel : @syntax.Impl) -> Doc {
         vis,
         attrs,
         doc,
-        params_loc: _,
+        ..,
       } = fun_decl
       let doc = fmt.docstring(doc, is_toplevel=true)
       let attrs = fmt.attributes(attrs)
       let vis = fmt.visibility(vis)
       let fn_ = fmt.wrap_comment(table.get_token("fn"), text("fn"))
-      let async_ = if is_async.is_some() {
+      let async_ = if is_async is Some(_) {
         fmt.wrap_comment(table.get_token("async"), space + text("async"))
       } else {
         empty
@@ -317,7 +317,7 @@ fn Fmt::impl_(fmt : Self, toplevel : @syntax.Impl) -> Doc {
         DeclNone => (empty, empty)
         DeclBody(local_types~, expr~) =>
           (empty, space + fmt.expr_block(expr, local_types~))
-        DeclStubs(Import(module_name~, func_name~)) => {
+        DeclStubs(Import(module_name~, func_name~, ..)) => {
           let equal = space + char('=')
           let module_name = space + double_quoted(text(module_name))
           let func_name = space + double_quoted(text(func_name))
@@ -346,7 +346,7 @@ fn Fmt::impl_(fmt : Self, toplevel : @syntax.Impl) -> Doc {
         body
       fmt.wrap_comment(Some(Node(loc)), layout)
     }
-    TopTest(expr~, name~, params~, local_types~, attrs~, doc~, loc=_) => {
+    TopTest(expr~, name~, params~, local_types~, attrs~, doc~, ..) => {
       let doc = fmt.docstring(doc, is_toplevel=true)
       let attrs = fmt.attributes(attrs)
       let test_ = text("test")
@@ -371,13 +371,13 @@ fn Fmt::impl_(fmt : Self, toplevel : @syntax.Impl) -> Doc {
       let body = fmt.expr_block(expr, local_types~)
       doc + attrs + test_ + name + params + body
     }
-    TopExpr(expr~, is_main~, local_types~, loc=_) => {
+    TopExpr(expr~, is_main~, local_types~, ..) => {
       let fn_ = text("fn")
       let name = space + text(if is_main { "main" } else { "init" })
       let expr = fmt.expr_block(expr, local_types~)
       fn_ + name + expr
     }
-    TopImplRelation(self_ty~, trait_~, quantifiers~, vis~, attrs~, doc~, loc=_) => {
+    TopImplRelation(self_ty~, trait_~, quantifiers~, vis~, attrs~, doc~, ..) => {
       let doc = fmt.docstring(doc, is_toplevel=true)
       let attrs = fmt.attributes(attrs)
       let vis = fmt.visibility(vis)
@@ -573,11 +573,11 @@ fn Fmt::trait_method(fmt : Fmt, meth : @syntax.TraitMethodDecl) -> Doc {
     params,
     return_type,
     error_type,
-    loc,
+    loc: _,
     has_default,
-    attrs,
+    attrs: _,
   } = meth
-  let async_ = if is_async.is_some() { text("async") + space } else { empty }
+  let async_ = if is_async is Some(_) { text("async") + space } else { empty }
   let name = text(name.name)
   let params = fmt.parameters(
     params,
@@ -595,7 +595,7 @@ fn Fmt::trait_method(fmt : Fmt, meth : @syntax.TraitMethodDecl) -> Doc {
   let error_type = fmt.error_type(error_type)
   let has_default = match has_default {
     None => empty
-    Some(loc) => space + char('=') + space + text("_")
+    Some(_) => space + char('=') + space + text("_")
   }
   group(async_ + name + params + arrow + return_type + error_type + has_default)
 }
@@ -638,16 +638,16 @@ fn Fmt::docstring(
       More(first_line, tail~) =>
         if first_line.trim(char_set=" \t\n") == "" {
           let first_line = text("///|") + text(first_line) + hardline
-          let remain_lines = concat_map(tail, x => text("///") +
-            text(x) +
-            hardline)
+          let remain_lines = concat_map(tail, x => {
+            text("///") + text(x) + hardline
+          })
           first_line + remain_lines
         } else {
           let new_first_line = text("///|") + hardline
           let old_first_line = text("///") + text(first_line) + hardline
-          let remain_lines = concat_map(tail, x => text("///") +
-            text(x) +
-            hardline)
+          let remain_lines = concat_map(tail, x => {
+            text("///") + text(x) + hardline
+          })
           new_first_line + old_first_line + remain_lines
         }
     }
@@ -657,8 +657,8 @@ fn Fmt::docstring(
 }
 
 ///|
-fn Fmt::type_decl_binder(fmt : Self, binder : @syntax.TypeDeclBinder) -> Doc {
-  let { name, loc } = binder
+fn Fmt::type_decl_binder(_ : Self, binder : @syntax.TypeDeclBinder) -> Doc {
+  let { name, loc: _ } = binder
   match name {
     None => text("_")
     Some(n) => text(n)
@@ -691,7 +691,7 @@ fn Fmt::constr_param(fmt : Self, constr_param : @syntax.ConstrParam) -> Doc {
 
 ///|
 fn Fmt::constr_decl(fmt : Self, constr_decl : @syntax.ConstrDecl) -> Doc {
-  let { name, args, tag, loc, attrs, doc } = constr_decl
+  let { name, args, tag, loc: _, attrs, doc } = constr_decl
   let doc = fmt.docstring(doc, is_toplevel=false)
   let attrs = fmt.attributes(attrs)
   let name = text(name.name)
@@ -701,7 +701,7 @@ fn Fmt::constr_decl(fmt : Self, constr_decl : @syntax.ConstrDecl) -> Doc {
   }
   let tag = match tag {
     None => empty
-    Some((tag, loc)) => space + char('=') + space + text(tag)
+    Some((tag, _)) => space + char('=') + space + text(tag)
   }
   doc + attrs + name + args + tag
 }
@@ -711,7 +711,7 @@ fn Fmt::deriving_directive(
   fmt : Self,
   deriving : @syntax.DerivingDirective,
 ) -> Doc {
-  let { type_name, args, loc } = deriving
+  let { type_name, args, loc: _ } = deriving
   let type_name = fmt.type_name(type_name)
   let args = match args {
     Empty => empty
@@ -739,7 +739,7 @@ fn Fmt::deriving_directives(
 
 ///|
 fn Fmt::field_decl(fmt : Self, field_decl : @syntax.FieldDecl) -> Doc {
-  let { name, ty, mut_, vis, attrs, doc, loc } = field_decl
+  let { name, ty, mut_, vis, attrs, doc, loc: _ } = field_decl
   let doc = fmt.docstring(doc, is_toplevel=false)
   let attrs = fmt.attributes(attrs)
   let vis = fmt.visibility(vis)
@@ -762,6 +762,7 @@ fn Fmt::typedecl(fmt : Fmt, typedecl : @syntax.TypeDecl) -> Doc {
     type_vis,
     deriving,
     loc: _,
+    is_declare: _,
   } = typedecl
   let doc = fmt.docstring(doc, is_toplevel=true)
   let attrs = fmt.attributes(attrs)
@@ -889,9 +890,11 @@ fn Fmt::multiline_string(
 ) -> Doc {
   ignore(parens)
   ignore(loc)
-  let elems = separate_map(elems, hardline, elem => match elem {
-    String(s) => text(s)
-    Interp(xs) => env.interps(xs)
+  let elems = separate_map(elems, hardline, elem => {
+    match elem {
+      String(s) => text(s)
+      Interp(xs) => env.interps(xs)
+    }
   })
   group(elems)
 }
@@ -1228,7 +1231,11 @@ fn Fmt::ty(fmt : Self, ty : @syntax.Type) -> Doc {
     }
     Tuple(tys~, loc=_) => group(parens(series1(tys.map(x => fmt.ty(x)), comma)))
     Arrow(args~, res~, err~, is_async~, loc=_) => {
-      let async_ = if is_async.is_some() { text("async") + space } else { empty }
+      let async_ = if is_async is Some(_) {
+        text("async") + space
+      } else {
+        empty
+      }
       let args = group(parens(series1(args.map(x => fmt.ty(x)), comma)))
       let arrow = space + text("->")
       let res = space + fmt.ty(res)
@@ -1410,7 +1417,7 @@ fn Fmt::func(
 ) -> RawExprDoc {
   let is_annomyous = binder is None
   let { parameters, body, return_type, error_type, kind, is_async, .. } = func
-  let async_ = if is_async.is_some() { text("async") + space } else { empty }
+  let async_ = if is_async is Some(_) { text("async") + space } else { empty }
   let fn_ = match kind {
     Arrow => empty
     Lambda => text("fn")
@@ -2068,10 +2075,9 @@ fn Fmt::expr(fmt : Self, expr : @syntax.Expr) -> RawExprDoc {
     Return(return_value~, loc=_) => {
       let return_ = text("return")
       let value = space +
-        optional(return_value, empty, e => fmt.compose_return_break_continue_rhs(
-          e,
-          Expr,
-        )) //TODO: compose_rhs
+        optional(return_value, empty, e => {
+          fmt.compose_return_break_continue_rhs(e, Expr)
+        }) //TODO: compose_rhs
       let doc = return_ + value
       Normal(doc)
     }
@@ -2111,7 +2117,7 @@ fn Fmt::expr(fmt : Self, expr : @syntax.Expr) -> RawExprDoc {
       let doc = label + loop_ + arg + body
       Normal(doc)
     }
-    For(binders~, condition~, continue_block~, body~, for_else~, label~, loc=_) => {
+    For(binders~, condition~, continue_block~, body~, for_else~, label~, ..) => {
       fn binder_expr2doc(pair : (@syntax.Binder, @syntax.Expr)) -> Doc {
         let (binder, expr) = pair
         let binder = fmt.binder(binder)
