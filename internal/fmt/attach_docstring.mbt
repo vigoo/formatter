@@ -20,9 +20,11 @@ fn attach_docstrings(
     comments : List[(@basic.Location, @tokens.Comment)],
   ) -> @syntax.DocString {
     {
-      content: comments.map(p => match p.1.content {
-        [.. "///|", .. remain] | [.. "///", .. remain] => remain.to_string()
-        _ => panic()
+      content: comments.map(p => {
+        match p.1.content {
+          [.. "///|", .. remain] | [.. "///", .. remain] => remain.to_string()
+          _ => panic()
+        }
       }),
       loc: {
         start: comments.head().unwrap().0.start,
@@ -53,7 +55,7 @@ fn attach_docstrings(
                 .unwrap_or(@syntax.DocString::empty())
               constr.doc = previous
             })
-          Record(fields) =>
+          Record(fields~, ..) =>
             fields.each(field => {
               let previous = skip_docstrings_before(field.loc.start)
                 .map(make_doc)
@@ -73,6 +75,7 @@ fn attach_docstrings(
       TopBatchTraitAlias(..) as decl => decl.doc = doc
       TopView(..) as view => view.doc = doc
       TopImpl(..) as imp => imp.doc = doc
+      TopUsing(..) as u => u.doc = doc
     }
     skip_docstrings_before(toplevel.loc().end) |> ignore
   }
