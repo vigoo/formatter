@@ -140,6 +140,7 @@ fn Fmt::return_and_error_type_annotation(
 fn Fmt::impl_(fmt : Self, toplevel : @syntax.Impl) -> Doc {
   match toplevel {
     TopView(_) => abort("enumview is not supported yet.")
+    TopUsing(_) => abort("using is not supported yet.")
     TopImpl(
       self_ty~,
       trait_~,
@@ -184,6 +185,7 @@ fn Fmt::impl_(fmt : Self, toplevel : @syntax.Impl) -> Doc {
       )
       let result = fmt.return_and_error_type_annotation(ret_ty, err_ty)
       let body = match body {
+        DeclNone => empty
         DeclBody(local_types~, expr~) =>
           space + fmt.expr_block(expr, local_types~, force_newline=true)
         DeclStubs(stubs) => {
@@ -281,7 +283,7 @@ fn Fmt::impl_(fmt : Self, toplevel : @syntax.Impl) -> Doc {
       let attrs = fmt.attributes(attrs)
       let vis = fmt.visibility(vis)
       let fn_ = fmt.wrap_comment(table.get_token("fn"), text("fn"))
-      let async_ = if is_async {
+      let async_ = if is_async.is_some() {
         fmt.wrap_comment(table.get_token("async"), space + text("async"))
       } else {
         empty
@@ -312,6 +314,7 @@ fn Fmt::impl_(fmt : Self, toplevel : @syntax.Impl) -> Doc {
       }
       let result = fmt.return_and_error_type_annotation(return_type, error_type)
       let (extern_, body) = match decl_body {
+        DeclNone => (empty, empty)
         DeclBody(local_types~, expr~) =>
           (empty, space + fmt.expr_block(expr, local_types~))
         DeclStubs(Import(module_name~, func_name~)) => {
@@ -574,7 +577,7 @@ fn Fmt::trait_method(fmt : Fmt, meth : @syntax.TraitMethodDecl) -> Doc {
     has_default,
     attrs,
   } = meth
-  let async_ = if is_async { text("async") + space } else { empty }
+  let async_ = if is_async.is_some() { text("async") + space } else { empty }
   let name = text(name.name)
   let params = fmt.parameters(
     params,
@@ -786,14 +789,14 @@ fn Fmt::typedecl(fmt : Fmt, typedecl : @syntax.TypeDecl) -> Doc {
       rbrace +
       deriving
     }
-    Record(field_decls) => {
+    Record(fields~, ..) => {
       let struct_ = text("struct")
       let tycon = space + text(tycon)
       let params = fmt.type_decl_binders(params)
       let lbrace = space + char('{')
       let semi = switch(char(';'), empty)
       let fields = nest(
-        hardline + series1(field_decls.map(x => fmt.field_decl(x)), semi),
+        hardline + series1(fields.map(x => fmt.field_decl(x)), semi),
       )
       let rbrace = hardline + char('}')
       let deriving = fmt.deriving_directives(deriving)
@@ -1122,9 +1125,14 @@ fn Fmt::pattern(fmt : Self, pat : @syntax.Pattern) -> Doc {
         }
       }
     }
-    Range(lhs~, rhs~, inclusive~, loc=_) => {
+    Range(lhs~, rhs~, kind~, loc=_) => {
       let lhs = fmt.pattern(lhs)
-      let op = text(if inclusive { "..=" } else { "..<" })
+      let op = text(
+        match kind {
+          Inclusive | InclusiveMissingEqual => "..="
+          Exclusive => "..<"
+        },
+      )
       let rhs = fmt.pattern(rhs)
       group(lhs + op + rhs)
     }
@@ -1220,7 +1228,7 @@ fn Fmt::ty(fmt : Self, ty : @syntax.Type) -> Doc {
     }
     Tuple(tys~, loc=_) => group(parens(series1(tys.map(x => fmt.ty(x)), comma)))
     Arrow(args~, res~, err~, is_async~, loc=_) => {
-      let async_ = if is_async { text("async") + space } else { empty }
+      let async_ = if is_async.is_some() { text("async") + space } else { empty }
       let args = group(parens(series1(args.map(x => fmt.ty(x)), comma)))
       let arrow = space + text("->")
       let res = space + fmt.ty(res)
@@ -1401,61 +1409,45 @@ fn Fmt::func(
   binder? : @syntax.Binder,
 ) -> RawExprDoc {
   let is_annomyous = binder is None
-  match func {
-    Lambda(
-      parameters~,
-      params_loc=_,
-      body~,
-      return_type~,
-      error_type~,
-      kind~,
-      has_error=_,
-      is_async~,
-      loc=_
-    ) => {
-      let async_ = if is_async { text("async") + space } else { empty }
-      let fn_ = match kind {
-        Arrow => empty
-        Lambda => text("fn")
-        Matrix => panic()
-      }
-      let binder = match binder {
-        None => empty
-        Some(b) => space + fmt.binder(b)
-      }
-      let params = group(
-        fmt.parameters(
-          parameters,
-          lparen=None,
-          param_tables=@comment.NodeTableArray::empty(),
-          commas=@comment.NodeArray::empty(),
-          rparen=None,
-        ),
-      )
-      let has_error_ty = match error_type {
-        NoErrorType => false
-        DefaultErrorType(_) | Noraise(_) | ErrorType(_) | MaybeError(_) => true
-      }
-      let arrow = match kind {
-        Arrow => space + text("=>")
-        Lambda =>
-          if return_type is Some(_) || has_error_ty {
-            space + text("->")
-          } else {
-            empty
-          }
-        Matrix => panic()
-      }
-      let ety = fmt.error_type(error_type)
-      let rty = match return_type {
-        None => empty
-        Some(ty) => space + fmt.ty(ty)
-      }
-      let body = space + fmt.expr_block(body, force_newline=!is_annomyous)
-      Collapsible(async_ + fn_ + binder + params + arrow + rty + ety, body)
-    }
-    Match(_) => panic()
+  let { parameters, body, return_type, error_type, kind, is_async, .. } = func
+  let async_ = if is_async.is_some() { text("async") + space } else { empty }
+  let fn_ = match kind {
+    Arrow => empty
+    Lambda => text("fn")
   }
+  let binder = match binder {
+    None => empty
+    Some(b) => space + fmt.binder(b)
+  }
+  let params = group(
+    fmt.parameters(
+      parameters,
+      lparen=None,
+      param_tables=@comment.NodeTableArray::empty(),
+      commas=@comment.NodeArray::empty(),
+      rparen=None,
+    ),
+  )
+  let has_error_ty = match error_type {
+    NoErrorType => false
+    DefaultErrorType(_) | Noraise(_) | ErrorType(_) | MaybeError(_) => true
+  }
+  let arrow = match kind {
+    Arrow => space + text("=>")
+    Lambda =>
+      if return_type is Some(_) || has_error_ty {
+        space + text("->")
+      } else {
+        empty
+      }
+  }
+  let ety = fmt.error_type(error_type)
+  let rty = match return_type {
+    None => empty
+    Some(ty) => space + fmt.ty(ty)
+  }
+  let body = space + fmt.expr_block(body, force_newline=!is_annomyous)
+  Collapsible(async_ + fn_ + binder + params + arrow + rty + ety, body)
 }
 
 ///|
@@ -1802,14 +1794,9 @@ fn Fmt::expr(fmt : Self, expr : @syntax.Expr) -> RawExprDoc {
       Normal(doc)
     }
     Function(func~, loc=_) =>
-      match func {
-        Lambda(parameters~, body~, kind~, ..) =>
-          match kind {
-            Arrow => fmt.arrow_function(parameters~, body~)
-            Lambda => fmt.func(func)
-            Matrix => panic()
-          }
-        Match(_) => panic()
+      match func.kind {
+        Arrow => fmt.arrow_function(parameters=func.parameters, body=func.body)
+        Lambda => fmt.func(func)
       }
     Ident(id~, loc~) => {
       let before_comment = fmt.before_comment(Some(Node(loc)))
@@ -1899,20 +1886,7 @@ fn Fmt::expr(fmt : Self, expr : @syntax.Expr) -> RawExprDoc {
           None => empty
           Some(ty) => space + colon + space + fmt.ty(ty)
         }
-        guard func
-          is @syntax.Func::Lambda(
-            parameters~,
-            params_loc=_,
-            body~,
-            return_type=_,
-            error_type=_,
-            kind=_,
-            has_error=_,
-            is_async=_,
-            loc=_
-          ) else {
-          panic()
-        }
+        let { parameters, body, .. } : @syntax.Func = func
         let params = space +
           group(
             fmt.parameters(
@@ -2253,5 +2227,7 @@ fn Fmt::expr(fmt : Self, expr : @syntax.Expr) -> RawExprDoc {
     }
     Group(expr~, ..) => abort(expr.to_json().stringify(indent=2))
     StaticAssert(_) => panic()
+    IsLexMatch(_) => abort("lex match is not supported yet.")
+    LexMatch(_) => abort("lex match is not supported yet.")
   }
 }

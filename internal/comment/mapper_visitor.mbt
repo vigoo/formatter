@@ -215,6 +215,7 @@ impl IterVisitor for Mapper with visit_Impl_TopFuncDef(
       (lb, rb)
     }
     DeclStubs(_) => (None, None)
+    DeclNone => (None, None)
   }
   s.table[Node(loc)] = NodeTable::new({
     "async": Token(async_),

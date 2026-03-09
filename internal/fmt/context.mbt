@@ -126,7 +126,7 @@ fn @syntax.Expr::classify(expr : Self) -> ExprKind {
     | Map(_)
     | Hole(kind=Synthesized | Incomplete, ..)
     | Unit(_)
-    | Function(func=Match(_) | Lambda(kind=Matrix | Lambda, ..), ..)
+    | Function(func={ kind: Lambda, .. }, ..)
     | DotApply(_) => SimpleKind
     Unary(_) => PrefixKind
     As(_) => PostfixKind("as")
@@ -145,7 +145,7 @@ fn @syntax.Expr::classify(expr : Self) -> ExprKind {
     | While(_)
     | Try(_)
     | TryOperator(_)
-    | Function(func=Lambda(kind=Arrow, ..), ..) => ControlFlowAndArrowFnKind
+    | Function(func={ kind: Arrow, .. }, ..) => ControlFlowAndArrowFnKind
     Mutate(_)
     | Assign(_)
     | ArraySet(_)
@@ -164,6 +164,7 @@ fn @syntax.Expr::classify(expr : Self) -> ExprKind {
     | Sequence(_)
     | LetMut(_)
     | StaticAssert(_) => StmtKind
+    IsLexMatch(_) | LexMatch(_) => ControlFlowAndArrowFnKind
   }
 }
 

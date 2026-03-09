@@ -53,7 +53,7 @@ fn attach_docstrings(
                 .unwrap_or(@syntax.DocString::empty())
               constr.doc = previous
             })
-          Record(fields) =>
+          Record(fields~, ..) =>
             fields.each(field => {
               let previous = skip_docstrings_before(field.loc.start)
                 .map(make_doc)
@@ -73,6 +73,7 @@ fn attach_docstrings(
       TopBatchTraitAlias(..) as decl => decl.doc = doc
       TopView(..) as view => view.doc = doc
       TopImpl(..) as imp => imp.doc = doc
+      TopUsing(..) as u => u.doc = doc
     }
     skip_docstrings_before(toplevel.loc().end) |> ignore
   }
